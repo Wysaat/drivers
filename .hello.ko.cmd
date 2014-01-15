@@ -1,0 +1,1 @@
+cmd_/home/user/drivers/hello.ko := ld -r -m elf_i386 -T /usr/src/linux-3.10.26/scripts/module-common.lds --build-id  -o /home/user/drivers/hello.ko /home/user/drivers/hello.o /home/user/drivers/hello.mod.o
