@@ -3,6 +3,7 @@ cmd_/home/user/drivers/scull/scull.mod.o := gcc -Wp,-MD,/home/user/drivers/scull
 source_/home/user/drivers/scull/scull.mod.o := /home/user/drivers/scull/scull.mod.c
 
 deps_/home/user/drivers/scull/scull.mod.o := \
+    $(wildcard include/config/module/unload.h) \
   include/linux/module.h \
     $(wildcard include/config/sysfs.h) \
     $(wildcard include/config/modules.h) \
@@ -15,7 +16,6 @@ deps_/home/user/drivers/scull/scull.mod.o := \
     $(wildcard include/config/tracing.h) \
     $(wildcard include/config/event/tracing.h) \
     $(wildcard include/config/ftrace/mcount/record.h) \
-    $(wildcard include/config/module/unload.h) \
     $(wildcard include/config/constructors.h) \
     $(wildcard include/config/debug/set/module/ronx.h) \
   include/linux/list.h \
