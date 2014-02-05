@@ -184,6 +184,13 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
     return retval;
 }
 
+long scull_ioctl(struct *file filp, unsigned int cmd, unsigned long arg) {
+    int err = 0, tmp;
+    int retval = 0;
+
+    if (_IOC_TYPE(cmd) != )
+}
+
 struct file_operations scull_fops = {
     .owner = THIS_MODULE,
     // .llseek = scull_llseek,
@@ -224,26 +231,26 @@ int scull_init_module(void) {
     dev_t dev = 0;
     int result, i;
 
-    // if (scull_major) {
-    //     dev = MKDEV(scull_major, scull_minor);
-    //     result = register_chrdev_region(dev, scull_nr_devs, "scull");
-    // } else {
-    //     result = alloc_chrdev_region(&dev, scull_minor, scull_nr_devs,
-    //             "scull");
-    //     scull_major = MAJOR(dev);
-    // }
-    // if (result < 0) {
-    //     printk(KERN_WARNING "scull: can't get major %d\n", scull_major);
-    //     return result;
-    // }
-
-    if ((alloc_chrdev_region(&dev, scull_minor, scull_nr_devs, "scull")) < 0) {
-        printk(KERN_WARNING "scull: can't get major ");
-        return -2;
+    if (scull_major) {
+        dev = MKDEV(scull_major, scull_minor);
+        result = register_chrdev_region(dev, scull_nr_devs, "scull");
+    } else {
+        result = alloc_chrdev_region(&dev, scull_minor, scull_nr_devs,
+                "scull");
+        scull_major = MAJOR(dev);
+    }
+    if (result < 0) {
+        printk(KERN_WARNING "scull: can't get major %d\n", scull_major);
+        return result;
     }
 
-    scull_major = MAJOR(dev);
-    printk(KERN_WARNING "scull: scull_major is %d", scull_major);
+    // if ((alloc_chrdev_region(&dev, scull_minor, scull_nr_devs, "scull")) < 0) {
+    //     printk(KERN_WARNING "scull: can't get major ");
+    //     return -2;
+    // }
+
+    // scull_major = MAJOR(dev);
+    // printk(KERN_WARNING "scull: scull_major is %d", scull_major);
 
     scull_devices = kmalloc(scull_nr_devs * sizeof(struct scull_dev), GFP_KERNEL);
     if (!scull_devices) {

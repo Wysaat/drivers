@@ -1,1 +1,1 @@
-cmd_/home/user/drivers/scull/scull.ko := ld -r -m elf_i386 -T /usr/src/linux-3.10.26/scripts/module-common.lds --build-id  -o /home/user/drivers/scull/scull.ko /home/user/drivers/scull/scull.o /home/user/drivers/scull/scull.mod.o
+cmd_/home/user/drivers/scull/scull.ko := ld -r -m elf_i386 -T /home/user/linux-3.12.7/scripts/module-common.lds --build-id  -o /home/user/drivers/scull/scull.ko /home/user/drivers/scull/scull.o /home/user/drivers/scull/scull.mod.o
