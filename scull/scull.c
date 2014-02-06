@@ -8,7 +8,13 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/slab.h>
+
+#include <linux/ioctl.h>
 #include <asm/uaccess.h>
+#include <linux/capability.h>  /* CAP_SYS_ADMIN... */
+#include <linux/sched.h>  /* the capable function */
+
+#include "scull.h"
 
 int scull_major = 0;
 int scull_minor = 0;
@@ -184,11 +190,64 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
     return retval;
 }
 
-long scull_ioctl(struct *file filp, unsigned int cmd, unsigned long arg) {
+int scull_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg) {
     int err = 0, tmp;
     int retval = 0;
 
-    if (_IOC_TYPE(cmd) != )
+    if (_IOC_TYPE(cmd) != SCULL_IOC_MAGIC) return -ENOTTY;
+    if (_IOC_NR(cmd) > SCULL_IOC_MAXNR) return -ENOTY;
+
+    if (_IOC_DIR(cmd) & _IOC_READ)
+        err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
+    else if (_IOC_DIR(cmd) & _IOC_WRITE)
+        err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+    if (err) return -EFAULT;
+
+    switch(cmd) {
+
+        case SCULL_IOCRESET:
+          scull_quantum = SCULL_QUANTUM;
+          scull_qset = SCULL_QSET;
+          break;
+
+        case SCULL_IOCSQUANTUM:
+          if (!capable(CAP_SYS_ADMIN))
+              return -EPERM;
+          retval = __get_user(scull_quantum, (int __usre *)arg);
+          break;
+
+        case SCULL_IOCTQUANTUM:
+          if (!capable(CAP_SYS_ADMIN))
+              return -EPERM;
+          scull_quantum = arg;
+          break;
+
+        case SCULL_IOCGQUANTUM:
+          retval = __put_user(scull_quantum, (int _usr *)arg);
+          break;
+
+        case SCULL_IOCQQUANTUM:
+          return scull_quantum;
+
+        case SCULL_IOCXQUANTUM:
+          if (!capable(CAP_SYS_ADMIN))
+              return -EPERM;
+          tmp = scull_quantum;
+          retval = __get_usr(scull_quantum, (int __usr *)arg);
+          if (retval == 0)
+            retval = __put_user(tmp, (int __usr *)arg);
+          break;
+
+        case SCULL_IOCHQUANTUM:
+          if (!capable(CAP_SYS_ADMIN))
+              return -EPERM;
+          tmp = scull_quantum;
+          scull_quantum = arg;
+          return tmp;
+
+        default:
+          return -ENOTTY;
+    }
 }
 
 struct file_operations scull_fops = {
