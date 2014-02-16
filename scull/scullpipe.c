@@ -11,6 +11,9 @@
 #include <asm/shed.h>
 #include <linux/shed.h>
 
+#include <linux/wait.h>
+#include <linux/poll.h>
+
 struct scull_pipe {
 	wait_queue_head_t inq, outq;
 	char *buffer, *end;
@@ -111,4 +114,24 @@ static ssize_t scull_p_write(struct file *filp, const char __usr *buf, size_t co
 	if (dev->async_queue)
 		kill_fasync(&dev->async_queue, SIGIO, POLL_IN);
 	return count;
+}
+
+static unsignef int scull_p_poll(struct file *filp, poll_table *wait) {
+	struct scull_pipe *dev = filp->private_data;
+	unsigned int mask = 0;
+
+	down(&dev->sem);
+	poll_wait(filp, &dev->inq, wait);
+	poll_wait(filp, &dev->outq, wait);
+	if (dev->rp != dev->wp)
+		mask |= POLLIN | POLLRDNORM;
+	if (spacefree(dev))
+		mask |= POLLOUT | POLLWRNORM;
+	up(&dev->sem);
+	return mask;
+}
+
+static int scull_p_fasync(int fd, struct file *filp, int mode) {
+	struct scull_pipe *dev = filp->private_data;
+	return fasync_helper(fd, filp, mode, &dev->async_queue);
 }

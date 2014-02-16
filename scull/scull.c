@@ -250,6 +250,26 @@ int scull_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsign
     }
 }
 
+loff_t scull_llseek(struct file *filp, loff_t off, int whence) {
+    struct scull_dev *dev = filp->private_data;
+    loff_t newpos;
+
+    switch(whence) {
+        case 0: /* SEEK_SET */
+            newpos = off;
+            break;
+        case 1: /* SEEK_CUR */
+            newpos = filp->f_pos + off;
+        case 2: /* SEEK_END */
+            newpos = dev->size + off;
+        default:
+            return -EINVAL;
+    }
+    if (newpos < 0) return -EINVAL;
+    filp->f_pos = newpos;
+    return newpos;
+}
+
 struct file_operations scull_fops = {
     .owner = THIS_MODULE,
     // .llseek = scull_llseek,
