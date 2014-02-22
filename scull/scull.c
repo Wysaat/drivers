@@ -14,6 +14,8 @@
 #include <linux/capability.h>  /* CAP_SYS_ADMIN... */
 #include <linux/sched.h>  /* the capable function */
 
+#include <linux/proc_fs.h>
+
 #include "scull.h"
 
 int scull_major = 0;
@@ -40,6 +42,113 @@ struct scull_dev {
     // struct semaphore sem;
     struct cdev cdev;
 };
+
+#ifdef SCULL_DEBUG
+
+int scull_read_procmem(char *buf, char **start, off_t offset, int count, int *eof, void *data) {
+    int i, j, len = 0;
+    int limit = count - 80;
+
+    for (i = 0; i < scull_nr_devs && len <= limit; i++) {
+        struct scull_dev *d = &scull_devices[i];
+        struct scull_qset *qs = d->data;
+        if (down_interruptible(&d->sem))
+            return -ERESTARTSYS;
+        len += sprintf(buf+len, "\nDevice %i: qset %i, q %i, sz %li\n",
+            i, d->qset, d->quantum, d->size);
+        for (; qs && len <= limit; qs = qs->next) {
+            len += sprintf(buf+len, " item at %p, qset at %p\n", qs, qs->data);
+            if (qs->data && !qs->next)
+                for (j = 0; j < d->qset; j++) {
+                    if (qs->data[j])
+                        len += sprintf(buf+len, "    % 4i: %8p\n", j, qs->data[j]);
+                }
+        }
+        up(&scull_devices[i].sem);
+    }
+    *eof = 1;
+    return len;
+}
+
+static void *scull_seq_start(struct seq_file *s, loff_t *pos) {
+    if (*pos >= scull_nr_devs)
+        return NULL;
+    return scull_devices + *pos;
+}
+
+static void *scull_seq_next(struct seq_file *s, void *v, loff_t *pos) {
+    (*pos)++;
+    if (*pos >= scull_nr_devs)
+        return NULL;
+    return scull_devices + *pos;
+}
+
+static void *scull_seq_stop(struct seq_file *s, void *v) {}
+
+static int scull_seq_show(struct seq_file *s, void *s) {
+    struct scull_dev *dev = (struct scull_dev *) v;
+    struct scull_qset *d;
+    int i;
+
+    if (down_interruptible(&dev->sem))
+        return -ERESTARTSYS;
+    seq_printf(s, "\nDevice %i: qset %i, q %i, sz %li\n",
+                 (int) (dev - scull_devices), dev->qset, dev->quantum, dev->size);
+    for (d = dev->data; d; d = d->next) {
+        set_printf(s, "  item at %p, qset at %p\n", d, d->data);
+        if (d->data && !d->next)
+            for (i = 0; i < dev->qset; i++) {
+                if (d->data[i])
+                    seq_printf(s, "    % 4i: %8p\n", i, d->data[i]);
+            }
+    }
+    up(&dev->sem);
+    return 0;
+}
+
+static struct seq_operations scull_seq_ops = {
+    .start = scull_seq_start,
+    .next = scull_seq_next,
+    .stop = scull_seq_stop,
+    .show = scull_seq_show
+};
+
+static int scullmem_proc_open(struct inode *inode, struct file *file) {
+    return single_open(file, scull_read_procmem, NULL);
+}
+
+static int scullseq_proc_open(struct inode *inode, struct file *file) {
+    return seq_open(file, &scull_seq_ops);
+}
+
+static struct file_operations scullmem_proc_ops = {
+    .owner = THIS_MODULE;
+    .open = scullmem_proc_open;
+    .read = seq_read;
+    .llseek = seq_lseek;
+    .release = single_release;
+};
+
+static struct file_operations scullseq_proc_ops = {
+    .owner = THIS_MODULE;
+    .open = scullseq_proc_open;
+    .read = seq_read;
+    .llseek = seq_lseek;
+    .release = seq_release;
+};
+
+static void scull_create_proc(void) {
+    proc_create_data("scullmem", 0 /* default mode */, NULL /* parent dir */,
+                     scullmem_proc_ops, NULL /* client data */);
+    proc_create("scullseq", 0, NULL, scull_seq_proc_ops);
+}
+
+static void scull_remove_proc(void) {
+    remove_proc_entry("scullmem", NULL /* parent dir */);
+    remove_proc_entry("scullseq", NULL);
+}
+
+#endif /* SCULL_DEBUG */
 
 int scull_trim(struct scull_dev *dev) {
     struct scull_qset *next, *dptr;
@@ -292,6 +401,10 @@ void scull_cleanup_module(void) {
         kfree(scull_devices);
     }
 
+#ifdef SCULL_DEBUG
+    scull_remove_proc();
+#endif
+
     unregister_chrdev_region(devno, scull_nr_devs);
 }
 
@@ -343,6 +456,12 @@ int scull_init_module(void) {
         scull_devices[i].qset = scull_qset;
         scull_setup_cdev(&scull_devices[i], i);
     }
+
+#ifdef SCULL_DEBUG
+    scull_create_proc();
+#endif
+
+    return 0;
 
   fail:
     scull_cleanup_module();
